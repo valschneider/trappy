@@ -140,6 +140,127 @@ def number_freq_plots(runs, map_label):
 
     return num_freq_plots
 
+def plot_generic(data_frame, name_field, names=None, fields=None,
+                 sanitize_name=None, prettify_name=None, name_matches=None,
+                 width=None, height=None, xlim="default", ylim="range",
+                 drawstyle="default", ax=None, title=""):
+    """
+    Generic plotting method
+
+    The values in the column 'name_field' will be used as discriminant
+
+    | time | cpu | load_avg | util_avg |
+    ====================================
+    |  ..  | ..  |    ..    |    ..    |
+    ------------------------------------
+
+    To plot the 'util_avg' value of CPU2, the function would be used like so:
+    plot_generic(df, name_field='cpu', names=[2], fields=['util_avg'])
+
+    CPUs could be compared by using:
+    plot_generic(df, name_field='cpu', names=[2, 3], fields=['util_avg'])
+
+    :param data_frame: Trace dataframe to read from
+    :type data_frame: ?dataframe?
+
+    :param name_field: Column name to organize data set
+    :type name_field: string
+
+    :param names: Values of 'name_field' to use
+    :type names: list of str
+
+    :param fields: Name of columns whose data will be plotted
+    :type fields: list of str
+
+    :param sanitize_name: name_field sanitization function
+    :type sanitize_name: function
+
+    :param prettify_name: name_field user-friendly stringify function
+    :type prettify_name: function
+
+    :param name_matches: stuff
+    :type name_matches: function
+
+    :param width: The width of the plot
+    :type width: int
+
+    :param height: The height of the plot
+    :type height: int
+
+    :param xlim: The xlim setting of the plot.
+        See :func:`~trappy.plot_utils.set_lim`
+    :type xlim: str or tuple of int
+
+    :param ylim: The ylim setting of the plot
+        See :func:`~trappy.plot_utils.set_lim`
+    :type ylim: str or tuple of int
+
+    :param drawstyle: The drawstyle setting of the plot
+    :type drawstyle: str
+    """
+
+    from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
+
+    if sanitize_name is None:
+        def sanitize_name(value): return value
+    if prettify_name is None:
+        def prettify_name(name): return name
+    if name_matches is None:
+        def name_matches(name, request): return name == request
+
+    # Sanitize name field from trace
+    dfr = data_frame.copy()
+    dfr[name_field] = dfr[name_field].apply(
+        sanitize_name
+    )
+
+    if names is None:
+        # Find available names
+        names = [entry for entry in dfr[name_field].unique().tolist()]
+    else:
+        # Filter out unwanted names
+        dfr = dfr[
+            dfr[name_field].isin(names)
+        ]
+
+        if len(dfr) == 0:
+            raise ValueError("No trace data for any of {}".format(
+                map(prettify_name, names)
+            ))
+
+    if fields is None:
+        # Find available fields
+        fields = dfr.columns.tolist()
+        fields.remove(name_field)
+    else:
+        # Filter out unwanted fields
+        try:
+            dfr = dfr[fields + [name_field]]
+        except KeyError as err:
+            raise ValueError("Invalid 'fields' parameter value : {}"
+                             .format(err.message)
+            )
+
+    setup_plot = False
+    if ax is None:
+        ax = pre_plot_setup(width, height)
+        setup_plot = True
+
+    for name in names:
+        cols = []
+        for field in fields:
+            cols.append('{} {}'.format(prettify_name(name), field))
+
+        plot_dfr = dfr[dfr[name_field] == name][fields]
+        plot_dfr.columns = cols
+        plot_dfr.plot(ax=ax, drawstyle=drawstyle)
+
+    if setup_plot:
+        post_plot_setup(ax=ax, title=title, xlim=xlim, ylim=ylim)
+
+    plt.legend()
+
+
 def plot_temperature(runs, width=None, height=None, ylim="range", tz_id=None):
     """Plot temperatures
 
